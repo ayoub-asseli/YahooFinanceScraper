@@ -6,16 +6,19 @@ headers = {
 }
 
 
-class FinancialStatementsData:
+class FinancialStatementsProfileData:
 
     def __init__(self, ticker, sheet):
         """
         :param ticker: the stock symbol as a string value
-        :param sheet: Just three possible string values: "balance-sheet", "financials" (income statement), "cash-flow"
+        :param sheet: Just three possible string values: "balance-sheet", "financials" (income statement), "cash-flow",
+                                                         "profile"
         """
         self.ticker = ticker
         self.sheet = sheet
-        self.url = "https://finance.yahoo.com/quote/{}/{}?p={}".format(ticker, sheet, ticker)
+        if sheet == "income-statement":
+            self.sheet = "financials"
+        self.url = "https://finance.yahoo.com/quote/{}/{}?p={}".format(ticker, self.sheet, ticker)
         self.soup = BeautifulSoup(requests.get(self.url, headers=headers).content, 'html.parser')
 
     @staticmethod
@@ -107,6 +110,7 @@ class FinancialStatementsData:
         for elem in self.soup.find_all("div", attrs={"data-test": "fin-row"}):
             data = self.data_parsing(elem.text.strip())
             if data[0] == type_of_information:
+                print(data)
                 try:
                     if data[periods.index(period) + 1] == "-":
                         raise ValueError
@@ -114,10 +118,21 @@ class FinancialStatementsData:
                 except ValueError:
                     return f"No {data[0]} data for the {period} period"
 
+    def get_stock_sector(self):
+        return [price.text for price in self.soup.find_all("div", attrs={"data-test": "qsp-profile"})
+                if not price.find_all("div", attrs={"data-test": "qsp-profile"})][0].split("\xa0")[1].split(
+                                                                                                        "Industry:")[0]
 
-# meta = FinancialStatementsData("AMZN", "financials")
-# print(meta.url)
-# print(meta.get_accounting_data("Total Revenue", "year_1"))
+    def get_stock_industry(self):
+        return [price.text for price in self.soup.find_all("div", attrs={"data-test": "qsp-profile"})
+                if not price.find_all("div", attrs={"data-test": "qsp-profile"})][0].split("\xa0")[2].split(
+                                                                                             "Full Time Employees:")[0]
+
+
+# meta = FinancialStatementsProfileData("SHCAY", "profile")
+# print(meta.get_accounting_data("Financing Cash Flow", "TTM"))
+# print(meta.get_stock_sector())
+# print(meta.get_stock_industry())
 
 
 class StockStatisticsData:
@@ -171,8 +186,9 @@ class StockStatisticsData:
 
 # meta = StockStatisticsData("AMZN")
 # print(meta.get_stats_types())
-# print(meta.get_data_types_by_stats_type('Share Statistics'))
-# print(meta.get_statistics('Share Statistics', 'Avg Vol (3 month) 3'))
+# print(meta.get_data_types_by_stats_type('Profitability'))
+# print(meta.get_statistics('Profitability', 'Profit Margin'))
+
 
 class CrossCurrencyData:
 
