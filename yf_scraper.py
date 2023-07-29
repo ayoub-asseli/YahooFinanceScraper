@@ -83,9 +83,12 @@ class FinancialStatementsProfileData:
         aimed_index, res = data_types.index(type_of_information), []
         sheet_idx = 4 if self.sheet == "balance-sheet" else 5
         for index, elem in enumerate(self.soup.find_all("div", attrs={"data-test": "fin-col"})):
+            elem = elem.text
             if aimed_index * sheet_idx <= index < aimed_index * sheet_idx + sheet_idx:
-                res.append(elem.text)
-        print(res)
+                if elem[0]:
+                    res.append(elem.replace(",", ""))
+                else:
+                    res.append(elem)
         if self.sheet in ["financials", "cash-flow"]:
             return res[periods.index(period)]
         elif self.sheet == "balance-sheet" and period == "TTM":
@@ -104,7 +107,7 @@ class FinancialStatementsProfileData:
 
 
 # meta = FinancialStatementsProfileData("BNP.PA", "income-statement")
-# print(meta.get_accounting_data("Total Revenue", "year_3"))
+# print(meta.get_accounting_data("Total Revenue", "year_2"))
 # print(meta.get_stock_sector())
 # print(meta.get_stock_industry())
 # print(meta.get_current_price())
