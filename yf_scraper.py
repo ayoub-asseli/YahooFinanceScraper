@@ -48,39 +48,7 @@ class FinancialStatementsProfileData:
             else:
                 global_parsing.append(elem)
 
-        final_parsing, char = [], ""
-        for elem in global_parsing:
-            if elem == "/":
-                final_parsing.append(char.strip())
-                char = ""
-            else:
-                char += elem + " "
-        final_parsing.append(char.strip())
-
-        # Handle exceptions
-        final_res = [elem for elem in final_parsing[:-1]]
-        n = len(final_parsing)
-        char, dot_counter = "", 0
-
-        if n < 6 and final_parsing[-1] in ["-" * (6 - (n - 1)), "0" * (6 - (n - 1))]:
-            for elem in final_parsing[-1]:
-                final_res.append(elem)
-
-        elif n < 6:
-            for elem in final_parsing[-1]:
-                if elem == "-":
-                    final_res.append(elem)
-                    continue
-                elif elem == ".":
-                    dot_counter += 1
-                if dot_counter >= 1:
-                    dot_counter += 1
-                char += elem
-                if dot_counter == 4:
-                    final_res.append(char)
-                    char, dot_counter = "", 0
-
-        return final_res
+        return global_parsing
 
     def get_data_types(self):
         """
@@ -92,6 +60,10 @@ class FinancialStatementsProfileData:
         for elem in self.soup.find_all("div", attrs={"data-test": "fin-row"}):
             types.append(self.data_parsing(elem.text.strip())[0])
         return types
+
+    def get_current_price(self):
+        return [price.text for price in self.soup.find_all("fin-streamer", attrs={"data-test": "qsp-price"})
+                if not price.find_all("fin-streamer", attrs={"data-test": "qsp-price"})][0]
 
     def get_accounting_data(self, type_of_information, period):
         """
@@ -107,16 +79,18 @@ class FinancialStatementsProfileData:
         :return: Return the revenue from the specific "period" as an integer
         """
         periods = ["TTM", "year_1", "year_2", "year_3", "year_4"]
-        for elem in self.soup.find_all("div", attrs={"data-test": "fin-row"}):
-            data = self.data_parsing(elem.text.strip())
-            if data[0] == type_of_information:
-                print(data)
-                try:
-                    if data[periods.index(period) + 1] == "-":
-                        raise ValueError
-                    return data[periods.index(period) + 1]
-                except ValueError:
-                    return f"No {data[0]} data for the {period} period"
+        data_types = self.get_data_types()
+        aimed_index, res = data_types.index(type_of_information), []
+        sheet_idx = 4 if self.sheet == "balance-sheet" else 5
+        for index, elem in enumerate(self.soup.find_all("div", attrs={"data-test": "fin-col"})):
+            if aimed_index * sheet_idx <= index < aimed_index * sheet_idx + sheet_idx:
+                res.append(elem.text)
+        print(res)
+        if self.sheet in ["financials", "cash-flow"]:
+            return res[periods.index(period)]
+        elif self.sheet == "balance-sheet" and period == "TTM":
+            return "No TTM info for the balance-sheet"
+        return res[periods.index(period)-1]
 
     def get_stock_sector(self):
         return [price.text for price in self.soup.find_all("div", attrs={"data-test": "qsp-profile"})
@@ -129,10 +103,11 @@ class FinancialStatementsProfileData:
                                                                                              "Full Time Employees:")[0]
 
 
-# meta = FinancialStatementsProfileData("SHCAY", "profile")
-# print(meta.get_accounting_data("Financing Cash Flow", "TTM"))
+# meta = FinancialStatementsProfileData("BNP.PA", "income-statement")
+# print(meta.get_accounting_data("Total Revenue", "year_3"))
 # print(meta.get_stock_sector())
 # print(meta.get_stock_industry())
+# print(meta.get_current_price())
 
 
 class StockStatisticsData:
@@ -308,7 +283,7 @@ class ETFData:
         return [elem.text for elem in tds][13]
 
 
-# meta = ETFData("PICK")
+# meta = ETFData("HTUS")
 # print(meta.get_current_price())
 # print(meta.get_last_52_week_range())
 # print(meta.get_day_range())
