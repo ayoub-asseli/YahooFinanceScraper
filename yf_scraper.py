@@ -477,3 +477,4 @@ class ETFRiskData:
 # meta = ETFRiskData("VUG")
 # print(meta.get_fund_risk_data_types())
 # print(meta.get_fund_risk_data_by_type("Treynor Ratio"))
+
