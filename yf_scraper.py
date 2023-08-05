@@ -1,14 +1,26 @@
+# Beautiful Soup 4
 from bs4 import BeautifulSoup
-import requests
+from selenium import webdriver
 
-headers = {
-    "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:89.0) Gecko/20100101 Firefox/89.0"
-}
+# Selenium 4
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
+
+# Support
+from fake_useragent import UserAgent
+import requests
+import time
+
+
+user_agent = {"User-Agent": UserAgent().chrome}
 
 
 class FinancialStatementsProfileData:
 
-    def __init__(self, ticker, sheet):
+    def __init__(self, ticker, sheet, driver=False):
         """
         :param ticker: the stock symbol as a string value
         :param sheet: Just three possible string values: "balance-sheet", "financials" (income statement), "cash-flow",
@@ -16,10 +28,35 @@ class FinancialStatementsProfileData:
         """
         self.ticker = ticker
         self.sheet = sheet
+        self.driver = driver
         if sheet == "income-statement":
             self.sheet = "financials"
         self.url = "https://finance.yahoo.com/quote/{}/{}?p={}".format(ticker, self.sheet, ticker)
-        self.soup = BeautifulSoup(requests.get(self.url, headers=headers).content, 'html.parser')
+        if not driver:
+            self.soup = BeautifulSoup(requests.get(self.url, headers=user_agent).content, 'html.parser')
+        else:
+            self.soup = BeautifulSoup(self.display_hidden_values(self.url), 'html.parser')
+
+    @staticmethod
+    def display_hidden_values(url_driver):
+        options = Options()
+        options.add_argument('--headless')
+        options.add_argument(f"--user-agent={user_agent}")
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        driver.get(url_driver)
+        reject_all = driver.find_element(By.XPATH, '//button[@class="btn secondary reject-all"]')
+        time.sleep(1)
+        action = ActionChains(driver)
+        action.click(on_element=reject_all)
+        action.perform()
+        time.sleep(1)
+        expand_button = driver.find_element(By.XPATH, '//*[@id="Col1-1-Financials-Proxy"]/section/div[2]/button')
+        action.click(on_element=expand_button)
+        action.perform()
+        time.sleep(1)
+        source = driver.page_source
+        driver.close()
+        return source
 
     @staticmethod
     def data_parsing(to_parse):
@@ -52,7 +89,7 @@ class FinancialStatementsProfileData:
 
     def get_data_types(self):
         """
-        This method allows you to have a visibility of the data you can retrieve from the company's income statement.
+        This method allows you to have a visibility of the data you can retrieve from the company's sheet selected.
         It refers to the "Breakdown" columns
         :return: The list of all data types you can retrieve. You will be able to loop over.
         """
@@ -106,7 +143,8 @@ class FinancialStatementsProfileData:
                                                                                              "Full Time Employees:")[0]
 
 
-# meta = FinancialStatementsProfileData("BNP.PA", "income-statement")
+meta = FinancialStatementsProfileData("GLE.PA", "income-statement", driver=True)
+print(meta.get_data_types())
 # print(meta.get_accounting_data("Total Revenue", "year_2"))
 # print(meta.get_stock_sector())
 # print(meta.get_stock_industry())
@@ -121,7 +159,7 @@ class StockStatisticsData:
         """
         self.ticker = ticker
         self.url = "https://finance.yahoo.com/quote/{}/key-statistics?p={}".format(ticker, ticker)
-        self.soup = BeautifulSoup(requests.get(self.url, headers=headers).content, 'html.parser')
+        self.soup = BeautifulSoup(requests.get(self.url, headers=user_agent).content, 'html.parser')
 
     def get_stats_types(self):
         return [title.text[:-1] for title in self.soup.find_all('h2') if not title.find_all('h2')][:1] + \
@@ -176,7 +214,7 @@ class CrossCurrencyData:
         """
         self.ticker = ticker.split("=")[0]
         self.url = f"https://finance.yahoo.com/quote/{self.ticker}%3DX?p={self.ticker}%3DX"
-        self.soup = BeautifulSoup(requests.get(self.url, headers=headers).content, 'html.parser')
+        self.soup = BeautifulSoup(requests.get(self.url, headers=user_agent).content, 'html.parser')
 
     def get_current_price(self):
         return [price.text for price in self.soup.find_all("fin-streamer", attrs={"data-pricehint": "4"})
@@ -213,7 +251,7 @@ class BenchmarkData:
         """
         self.ticker = ticker.split("=")[0]
         self.url = f"https://finance.yahoo.com/quote/%5E{self.ticker}?p=%5E{self.ticker}"
-        self.soup = BeautifulSoup(requests.get(self.url, headers=headers).content, 'html.parser')
+        self.soup = BeautifulSoup(requests.get(self.url, headers=user_agent).content, 'html.parser')
 
     def get_current_price(self):
         return [price.text for price in self.soup.find_all("fin-streamer", attrs={"data-test": "qsp-price"})
@@ -249,7 +287,7 @@ class ETFData:
         """
         self.ticker = ticker
         self.url = f"https://finance.yahoo.com/quote/{ticker}?p={ticker}"
-        self.soup = BeautifulSoup(requests.get(self.url, headers=headers).content, 'html.parser')
+        self.soup = BeautifulSoup(requests.get(self.url, headers=user_agent).content, 'html.parser')
 
     def get_current_price(self):
         return [price.text for price in self.soup.find_all("fin-streamer", attrs={"data-test": "qsp-price"})
@@ -300,7 +338,7 @@ class ETFHoldingsData:
         """
         self.ticker = ticker
         self.url = f"https://finance.yahoo.com/quote/{ticker}/holdings?p={ticker}"
-        self.soup = BeautifulSoup(requests.get(self.url, headers=headers).content, 'html.parser')
+        self.soup = BeautifulSoup(requests.get(self.url, headers=user_agent).content, 'html.parser')
 
     def get_top_holdings(self):
         """
@@ -368,7 +406,7 @@ class ETFPerformanceData:
         """
         self.ticker = ticker
         self.url = f"https://finance.yahoo.com/quote/{ticker}/performance?p={ticker}"
-        self.soup = BeautifulSoup(requests.get(self.url, headers=headers).content, 'html.parser')
+        self.soup = BeautifulSoup(requests.get(self.url, headers=user_agent).content, 'html.parser')
 
     def get_trailing_period_available(self):
         """
@@ -448,7 +486,7 @@ class ETFRiskData:
         """
         self.ticker = ticker
         self.url = f"https://finance.yahoo.com/quote/{ticker}/risk?p={ticker}"
-        self.soup = BeautifulSoup(requests.get(self.url, headers=headers).content, 'html.parser')
+        self.soup = BeautifulSoup(requests.get(self.url, headers=user_agent).content, 'html.parser')
 
     def get_fund_risk_data_types(self):
         composed = [elem.find("span").text for elem in
@@ -477,4 +515,3 @@ class ETFRiskData:
 # meta = ETFRiskData("VUG")
 # print(meta.get_fund_risk_data_types())
 # print(meta.get_fund_risk_data_by_type("Treynor Ratio"))
-
