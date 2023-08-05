@@ -102,7 +102,7 @@ class FinancialStatementsProfileData:
         return [price.text for price in self.soup.find_all("fin-streamer", attrs={"data-test": "qsp-price"})
                 if not price.find_all("fin-streamer", attrs={"data-test": "qsp-price"})][0]
 
-    def get_accounting_data(self, type_of_information, period):
+    def get_accounting_data(self, type_of_information, periods):
         """
         :param
         period: Could take a string value argument which could be
@@ -115,7 +115,7 @@ class FinancialStatementsProfileData:
                              It refers to the "Breakdown" column (ex: "Total Revenue")
         :return: Return the revenue from the specific "period" as an integer
         """
-        periods = ["TTM", "year_1", "year_2", "year_3", "year_4"]
+        periods_ = ["TTM", "year_1", "year_2", "year_3", "year_4"]
         data_types = self.get_data_types()
         aimed_index, res = data_types.index(type_of_information), []
         sheet_idx = 4 if self.sheet == "balance-sheet" else 5
@@ -126,11 +126,16 @@ class FinancialStatementsProfileData:
                     res.append(elem.replace(",", ""))
                 else:
                     res.append(elem)
+        data_res = []
         if self.sheet in ["financials", "cash-flow"]:
-            return res[periods.index(period)]
-        elif self.sheet == "balance-sheet" and period == "TTM":
+            for period in periods:
+                data_res.append(res[periods_.index(period)])
+            return data_res
+        elif self.sheet == "balance-sheet" and "TTM" in periods:
             return "No TTM info for the balance-sheet"
-        return res[periods.index(period)-1]
+        for period in periods:
+            data_res.append(res[periods_.index(period)-1])
+        return data_res
 
     def get_stock_sector(self):
         return [price.text for price in self.soup.find_all("div", attrs={"data-test": "qsp-profile"})
@@ -143,9 +148,9 @@ class FinancialStatementsProfileData:
                                                                                              "Full Time Employees:")[0]
 
 
-meta = FinancialStatementsProfileData("GLE.PA", "income-statement", driver=True)
-print(meta.get_data_types())
-# print(meta.get_accounting_data("Total Revenue", "year_2"))
+# meta = FinancialStatementsProfileData("GLE.PA", "income-statement", driver=False)
+# print(meta.get_data_types())
+# print(meta.get_accounting_data("Total Revenue", ["year_4", "year_2", "year_3"]))
 # print(meta.get_stock_sector())
 # print(meta.get_stock_industry())
 # print(meta.get_current_price())
